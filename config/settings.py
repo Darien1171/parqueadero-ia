@@ -31,8 +31,8 @@ DEFAULT_SETTINGS = {
     'database': {
         'host': 'localhost',
         'port': 3306,
-        'user': 'usuario_parqueadero',
-        'password': 'tu_contraseña',
+        'user': 'root',
+        'password': 'proyecto',
         'database': 'parqueadero',
         'charset': 'utf8mb4'
     },
@@ -44,7 +44,7 @@ DEFAULT_SETTINGS = {
         'port': 80,
         'username': 'admin',
         'password': 'admin',
-        'rtsp_url': 'rtsp://{username}:{password}@{ip}:554/Streaming/Channels/101',  # Hikvision
+        'rtsp_url': 'rtsp://admin:admin@{ip}:554/Stream',  # Hikvision
         'preset_entrada': 1,
         'preset_salida': 2,
         'preset_general': 3,

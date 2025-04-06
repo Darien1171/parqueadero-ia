@@ -6,8 +6,8 @@
 database:
   host: localhost
   port: 3306
-  user: usuario_parqueadero
-  password: tu_contraseña
+  user: root
+  password: proyecto
   database: parqueadero
   charset: utf8mb4
 
