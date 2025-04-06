@@ -1,0 +1,126 @@
+# -----------------------------------------------------
+# Archivo de configuración para Sistema de Parqueadero con IA
+# -----------------------------------------------------
+
+# Configuración de base de datos
+database:
+  host: localhost
+  port: 3306
+  user: usuario_parqueadero
+  password: tu_contraseña
+  database: parqueadero
+  charset: utf8mb4
+
+# Configuración de cámara PTZ
+camera:
+  enabled: true
+  ip: 192.168.1.100  # Dirección IP de la cámara PTZ
+  port: 80           # Puerto HTTP de la cámara
+  username: admin    # Usuario para acceso a cámara
+  password: admin    # Contraseña para acceso a cámara
+  rtsp_url: 'rtsp://{username}:{password}@{ip}:554/Streaming/Channels/101'  # URL RTSP para streaming
+  
+  # Presets (posiciones predefinidas)
+  preset_entrada: 1  # Preset para posición de entrada
+  preset_salida: 2   # Preset para posición de salida 
+  preset_general: 3  # Preset para visión general
+  
+  # Ajustes de video
+  fps: 15           # FPS a capturar
+  resolution: '1280x720'  # Resolución preferida
+
+# Configuración de GPIO para fotoceldas
+gpio:
+  enabled: true        # Habilitar uso de GPIO
+  pin_entrada: 35      # Pin GPIO para fotocelda de entrada (modo BOARD)
+  pin_salida: 37       # Pin GPIO para fotocelda de salida (modo BOARD)
+  debounce_ms: 300     # Tiempo de debounce en milisegundos
+  simulation_mode: false  # Modo de simulación (para desarrollo sin hardware)
+
+# Configuración de modelos de IA
+ai:
+  # Rutas a modelos optimizados con TensorRT
+  modelo_detector_placas: 'modelos/ai_models/plate_detector.trt'
+  modelo_ocr_placas: 'modelos/ai_models/plate_ocr.trt'
+  modelo_clasificador_vehiculos: 'modelos/ai_models/vehicle_classifier.trt'
+  
+  # Configuración de ejecución
+  usar_clasificador_vehiculos: false  # Habilitar/deshabilitar clasificador
+  umbral_confianza: 0.7   # Umbral de confianza para detecciones automáticas
+  precision: 'fp16'       # Precisión de punto flotante (fp16 o fp32)
+  
+  # Modo fallback (cuando falla la IA)
+  usar_fallback: true     # Habilitar fallback a métodos clásicos
+  usar_tesseract: true    # Usar Tesseract OCR como fallback
+
+# Configuración de interfaz de usuario
+ui:
+  show_ptz_controls: true  # Mostrar controles PTZ en la interfaz
+  theme: 'default'         # Tema de la interfaz (default, dark)
+  language: 'es'           # Idioma de la interfaz
+  auto_refresh: true       # Refresco automático de datos
+  refresh_interval_ms: 5000  # Intervalo de refresco en milisegundos
+
+# Configuración de logging
+logging:
+  level: 'INFO'            # Nivel de logging (DEBUG, INFO, WARNING, ERROR)
+  max_size_mb: 10          # Tamaño máximo de archivo de log en MB
+  backup_count: 5          # Número de archivos de respaldo
+  log_to_console: true     # Enviar logs a consola
+  log_to_file: true        # Guardar logs en archivo
+  log_to_database: false   # Guardar logs en base de datos
+
+# Configuración de almacenamiento de imágenes
+storage:
+  entrada_dir: 'imagenes/entrada'    # Directorio para imágenes de entrada
+  salida_dir: 'imagenes/salida'      # Directorio para imágenes de salida
+  procesado_dir: 'imagenes/procesado'  # Directorio para imágenes procesadas
+  max_days: 30                       # Días máximos para conservar imágenes
+  auto_cleanup: true                 # Limpieza automática de imágenes antiguas
+  backup_enabled: false              # Habilitar respaldo de imágenes
+  backup_dir: 'backup/imagenes'      # Directorio para respaldo de imágenes
+
+# Configuración de rendimiento
+performance:
+  max_workers: 2           # Número de hilos de trabajo para procesamiento
+  limit_fps: true          # Limitar FPS para reducir carga de CPU/GPU
+  target_fps: 15           # FPS objetivo
+  optimized_for_jetson: true  # Optimizaciones específicas para Jetson
+  use_gstreamer: true      # Usar GStreamer para streaming de video
+
+# Configuración de operación
+operation:
+  auto_entrada: true       # Registrar entradas automáticamente
+  auto_salida: true        # Registrar salidas automáticamente
+  horario_inicio: '06:00'  # Hora de inicio de operación (formato 24h)
+  horario_fin: '22:00'     # Hora de fin de operación (formato 24h)
+  dias_operacion: [1,2,3,4,5,6]  # Días de operación (1=lunes, 7=domingo)
+  modo_fuera_horario: 'manual'  # Modo fuera de horario (auto, manual, disabled)
+
+# Configuración de notificaciones
+notifications:
+  enabled: false           # Habilitar notificaciones
+  types:                   # Tipos de notificaciones
+    email: false           # Notificaciones por email
+    sms: false             # Notificaciones por SMS
+    push: false            # Notificaciones push
+  events:                  # Eventos que generan notificaciones
+    vehicle_entry: true    # Entrada de vehículo
+    vehicle_exit: true     # Salida de vehículo
+    unknown_vehicle: true  # Vehículo desconocido
+    system_error: true     # Error del sistema
+  email_config:            # Configuración de email
+    smtp_server: 'smtp.example.com'
+    smtp_port: 587
+    smtp_user: 'usuario@example.com'
+    smtp_password: 'contraseña'
+    from_email: 'parqueadero@example.com'
+    to_email: 'admin@example.com'
+
+# Configuración de mantenimiento
+maintenance:
+  db_backup_enabled: true           # Habilitar respaldo de base de datos
+  db_backup_interval_hours: 24      # Intervalo de respaldo en horas
+  db_backup_dir: 'backup/database'  # Directorio para respaldos de BD
+  db_cleanup_days: 90               # Días para retención de datos históricos
+  log_cleanup_days: 30              # Días para retención de logs

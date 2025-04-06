@@ -1,0 +1,30 @@
+#Entorno vitual
+venv/
+env/
+ENV/
+.venv/
+
+# Archivos compilados de python
+__pycache__/
+.py[cod]
+*.$py.class
+*py[cod]
+*.so
+.Python
+*.pkl
+
+# Archivos de configuracion local
+.env
+.env.local
+
+#Bases de datos
+*.sqlite3
+*.db
+*.sql
+
+# Configuracion de IDES/editores
+.idea
+.vscode/
+*.swp
+*~
+.DS_Store

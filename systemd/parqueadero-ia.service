@@ -1,0 +1,28 @@
+[Unit]
+Description=Sistema de Parqueadero con IA para Jetson Orin Nano
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=tu_usuario
+Group=tu_usuario
+WorkingDirectory=/home/tu_usuario/parqueadero_ia
+ExecStart=/home/tu_usuario/parqueadero_ia/venv/bin/python main.py
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=parqueadero-ia
+Restart=always
+RestartSec=10
+Environment=DISPLAY=:0
+Environment=PYTHONUNBUFFERED=1
+
+# Configuraciones de recursos y seguridad
+MemoryLimit=2G
+CPUQuota=80%
+ProtectSystem=full
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
