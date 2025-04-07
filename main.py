@@ -12,7 +12,7 @@ import argparse
 import logging
 import threading
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import cv2
 
 # Agregar directorio raíz al path
@@ -50,6 +50,513 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger('parqueadero')
+
+class AnalisisImagenApp:
+    """Aplicación para análisis de imágenes subidas por el usuario"""
+    
+    def __init__(self, root, args):
+        """
+        Inicializa la aplicación de análisis de imágenes
+        
+        Args:
+            root: Ventana principal de Tkinter
+            args: Argumentos de línea de comandos
+        """
+        self.root = root
+        self.args = args
+        self.root.title("Análisis de Imagen - Sistema de Parqueadero con IA")
+        self.root.geometry("1280x720")
+        
+        # Inicializar variables
+        self.image_path = None
+        self.current_image = None
+        self.detection_results = None
+        
+        # Crear directorios si no existen
+        self._create_directories()
+        
+        # Inicializar componentes AI
+        self._init_ai_models()
+        
+        # Interfaz gráfica
+        self._setup_ui()
+        
+        logger.info("Modo de análisis de imágenes iniciado correctamente")
+    
+    def _create_directories(self):
+        """Crear directorios necesarios si no existen"""
+        dirs = [
+            'logs',
+            'imagenes/entrada',
+            'imagenes/salida',
+            'imagenes/procesado'
+        ]
+        
+        for directory in dirs:
+            os.makedirs(directory, exist_ok=True)
+    
+    def _init_ai_models(self):
+        """Inicializar modelos de IA"""
+        try:
+            # Inicializar detector de placas
+            self.detector_placas = DetectorPlacas(
+                modelo_detector=SETTINGS['ai']['modelo_detector_placas'],
+                modelo_ocr=SETTINGS['ai']['modelo_ocr_placas']
+            )
+            
+            # Inicializar clasificador de vehículos (opcional)
+            if SETTINGS['ai']['usar_clasificador_vehiculos']:
+                self.clasificador_vehiculos = ClasificadorVehiculos(
+                    modelo=SETTINGS['ai']['modelo_clasificador_vehiculos']
+                )
+            else:
+                self.clasificador_vehiculos = None
+                
+            logger.info("Modelos de IA inicializados correctamente")
+            
+        except Exception as e:
+            logger.error(f"Error al inicializar modelos de IA: {e}")
+            messagebox.showwarning("Advertencia", f"Error al cargar modelos de IA: {e}\nEl sistema funcionará en modo degradado.")
+            self.detector_placas = None
+            self.clasificador_vehiculos = None
+    
+    def _setup_ui(self):
+        """Configurar interfaz gráfica"""
+        # Marco principal
+        self.main_frame = ttk.Frame(self.root)
+        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        # Panel izquierdo para visualización de imágenes
+        self.left_frame = ttk.Frame(self.main_frame)
+        self.left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Panel para subir imágenes y visualizarlas
+        self.image_frame = ttk.LabelFrame(self.left_frame, text="Imagen para Análisis")
+        self.image_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Etiqueta para mostrar la imagen
+        self.image_label = ttk.Label(self.image_frame)
+        self.image_label.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Botones para operaciones con imágenes
+        self.img_button_frame = ttk.Frame(self.left_frame)
+        self.img_button_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Botón para cargar imagen
+        self.btn_cargar = ttk.Button(self.img_button_frame, text="Cargar Imagen", command=self._cargar_imagen)
+        self.btn_cargar.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        # Botón para procesar imagen
+        self.btn_procesar = ttk.Button(self.img_button_frame, text="Procesar Imagen", command=self._procesar_imagen)
+        self.btn_procesar.pack(side=tk.LEFT, padx=5, pady=5)
+        self.btn_procesar.config(state=tk.DISABLED)  # Deshabilitar hasta que se cargue una imagen
+        
+        # Botón para limpiar
+        self.btn_limpiar = ttk.Button(self.img_button_frame, text="Limpiar", command=self._limpiar)
+        self.btn_limpiar.pack(side=tk.LEFT, padx=5, pady=5)
+        
+        # Panel derecho para resultados
+        self.right_frame = ttk.Frame(self.main_frame)
+        self.right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        
+        # Panel para resultados de detección de placa
+        self.detection_frame = ttk.LabelFrame(self.right_frame, text="Resultados de Detección")
+        self.detection_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Imagen de la placa detectada
+        self.plate_frame = ttk.Frame(self.detection_frame)
+        self.plate_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        self.plate_label = ttk.Label(self.plate_frame)
+        self.plate_label.pack(side=tk.TOP, padx=5, pady=5)
+        
+        # Información de la placa
+        self.info_frame = ttk.Frame(self.detection_frame)
+        self.info_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Texto de la placa
+        ttk.Label(self.info_frame, text="Placa detectada:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=2)
+        self.placa_var = tk.StringVar()
+        ttk.Label(self.info_frame, textvariable=self.placa_var, font=("Arial", 16, "bold")).grid(row=0, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        # Confianza de detección
+        ttk.Label(self.info_frame, text="Confianza:").grid(row=1, column=0, sticky=tk.W, padx=5, pady=2)
+        self.confianza_var = tk.StringVar()
+        ttk.Label(self.info_frame, textvariable=self.confianza_var).grid(row=1, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        # Si hay clasificador de vehículos
+        if self.clasificador_vehiculos:
+            # Tipo de vehículo
+            ttk.Label(self.info_frame, text="Tipo de vehículo:").grid(row=2, column=0, sticky=tk.W, padx=5, pady=2)
+            self.tipo_var = tk.StringVar()
+            ttk.Label(self.info_frame, textvariable=self.tipo_var).grid(row=2, column=1, sticky=tk.W, padx=5, pady=2)
+            
+            # Marca
+            ttk.Label(self.info_frame, text="Marca:").grid(row=3, column=0, sticky=tk.W, padx=5, pady=2)
+            self.marca_var = tk.StringVar()
+            ttk.Label(self.info_frame, textvariable=self.marca_var).grid(row=3, column=1, sticky=tk.W, padx=5, pady=2)
+            
+            # Color
+            ttk.Label(self.info_frame, text="Color:").grid(row=4, column=0, sticky=tk.W, padx=5, pady=2)
+            self.color_var = tk.StringVar()
+            ttk.Label(self.info_frame, textvariable=self.color_var).grid(row=4, column=1, sticky=tk.W, padx=5, pady=2)
+        
+        # Botones de acción
+        self.action_frame = ttk.Frame(self.right_frame)
+        self.action_frame.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Botón para registrar entrada
+        self.btn_entrada = ttk.Button(self.action_frame, text="Registrar Entrada", command=self._registrar_entrada)
+        self.btn_entrada.pack(side=tk.LEFT, padx=5, pady=5)
+        self.btn_entrada.config(state=tk.DISABLED)  # Deshabilitar hasta procesar una imagen
+        
+        # Botón para registrar salida
+        self.btn_salida = ttk.Button(self.action_frame, text="Registrar Salida", command=self._registrar_salida)
+        self.btn_salida.pack(side=tk.LEFT, padx=5, pady=5)
+        self.btn_salida.config(state=tk.DISABLED)  # Deshabilitar hasta procesar una imagen
+        
+        # Consola de eventos
+        self.console_frame = ttk.LabelFrame(self.right_frame, text="Consola de Eventos")
+        self.console_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.console = tk.Text(self.console_frame, height=10, width=40)
+        self.console.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.console.config(state=tk.DISABLED)
+        
+        # Barra de desplazamiento para consola
+        self.scrollbar = ttk.Scrollbar(self.console, command=self.console.yview)
+        self.console.configure(yscrollcommand=self.scrollbar.set)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Configurar el modo de inicio
+        self._log_event("Modo de análisis de imágenes iniciado. Por favor cargue una imagen.")
+    
+    def _cargar_imagen(self):
+        """Cargar imagen desde el sistema de archivos"""
+        filetypes = [
+            ("Archivos de imagen", "*.jpg *.jpeg *.png *.bmp"),
+            ("Todos los archivos", "*.*")
+        ]
+        
+        filepath = filedialog.askopenfilename(
+            title="Seleccionar imagen",
+            filetypes=filetypes
+        )
+        
+        if filepath:
+            try:
+                self.image_path = filepath
+                self._log_event(f"Imagen cargada: {os.path.basename(filepath)}")
+                
+                # Cargar imagen con OpenCV
+                self.current_image = cv2.imread(filepath)
+                
+                if self.current_image is None:
+                    messagebox.showerror("Error", "No se pudo cargar la imagen seleccionada")
+                    self._log_event("Error al cargar la imagen")
+                    return
+                
+                # Mostrar imagen en la interfaz
+                self._mostrar_imagen(self.current_image, self.image_label)
+                
+                # Habilitar botón de procesar
+                self.btn_procesar.config(state=tk.NORMAL)
+                
+                # Limpiar resultados anteriores
+                self._limpiar_resultados()
+                
+            except Exception as e:
+                messagebox.showerror("Error", f"Error al cargar la imagen: {e}")
+                self._log_event(f"Error al cargar la imagen: {e}")
+    
+    def _procesar_imagen(self):
+        """Procesar la imagen cargada para detectar placa"""
+        if self.current_image is None:
+            messagebox.showerror("Error", "No hay imagen para procesar")
+            return
+        
+        try:
+            self._log_event("Procesando imagen...")
+            
+            # Detectar placa
+            if self.detector_placas:
+                placa, confianza, img_placa = self.detector_placas.detectar_placa(self.current_image)
+                
+                if placa:
+                    self._log_event(f"Placa detectada: {placa} (confianza: {confianza:.2f})")
+                    
+                    # Mostrar resultados
+                    self.placa_var.set(placa)
+                    self.confianza_var.set(f"{confianza:.2f}")
+                    
+                    # Mostrar imagen de la placa
+                    if img_placa is not None:
+                        self._mostrar_imagen(img_placa, self.plate_label)
+                    
+                    # Guardar resultados para registro posterior
+                    self.detection_results = {
+                        'placa': placa,
+                        'confianza': confianza,
+                        'img_placa': img_placa
+                    }
+                    
+                    # Clasificar vehículo si está disponible
+                    if self.clasificador_vehiculos:
+                        tipo, marca, color, conf_extra = self.clasificador_vehiculos.clasificar(self.current_image)
+                        
+                        if tipo:
+                            self.tipo_var.set(f"{tipo} ({conf_extra[0]:.2f})")
+                            self.detection_results['tipo'] = tipo
+                        
+                        if marca:
+                            self.marca_var.set(f"{marca} ({conf_extra[1]:.2f})")
+                            self.detection_results['marca'] = marca
+                        
+                        if color:
+                            self.color_var.set(f"{color} ({conf_extra[2]:.2f})")
+                            self.detection_results['color'] = color
+                    
+                    # Habilitar botones de registro
+                    self.btn_entrada.config(state=tk.NORMAL)
+                    self.btn_salida.config(state=tk.NORMAL)
+                else:
+                    self._log_event("No se detectó placa en la imagen")
+                    messagebox.showinfo("Resultado", "No se detectó placa en la imagen")
+            else:
+                self._log_event("Detector de placas no disponible")
+                messagebox.showwarning("Advertencia", "Detector de placas no disponible")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al procesar la imagen: {e}")
+            self._log_event(f"Error al procesar la imagen: {e}")
+    
+    def _registrar_entrada(self):
+        """Registrar entrada con la placa detectada"""
+        if not self.detection_results:
+            messagebox.showerror("Error", "No hay resultados de detección")
+            return
+        
+        try:
+            # Guardar copia de la imagen en el directorio de entradas
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            img_path = os.path.join("imagenes", "entrada", f"entrada_{timestamp}.jpg")
+            cv2.imwrite(img_path, self.current_image)
+            
+            # Abrir diálogo de entrada
+            dialog = EntradaDialog(
+                self.root, 
+                self.detection_results['placa'], 
+                img_path, 
+                self.detection_results.get('img_placa')
+            )
+            
+            if dialog.result:
+                # Registro exitoso
+                self._log_event(f"Registro de entrada exitoso: {dialog.result['placa']}")
+                
+                # Guardar en base de datos
+                try:
+                    vehiculo = Vehiculo()
+                    # Primero ver si el vehículo ya existe
+                    existe = vehiculo.buscar_por_placa(dialog.result['placa'])
+                    
+                    if not existe:
+                        # Crear nuevo registro de vehículo
+                        vehiculo.placa = dialog.result['placa']
+                        vehiculo.tipo = dialog.result['tipo']
+                        vehiculo.color = dialog.result['color']
+                        vehiculo.marca = dialog.result['marca']
+                        vehiculo.modelo = dialog.result['modelo']
+                        
+                        # Si hay propietario, asignarlo o crearlo
+                        if dialog.result.get('propietario'):
+                            usuario = Usuario()
+                            usuario.nombre = dialog.result['propietario']
+                            usuario.documento = dialog.result.get('documento', '')
+                            usuario.telefono = dialog.result.get('telefono', '')
+                            id_usuario = usuario.guardar()
+                            vehiculo.id_propietario = id_usuario
+                        
+                        vehiculo.guardar()
+                    
+                    # Registrar entrada
+                    estado = Estado()
+                    estado.registrar_entrada(
+                        dialog.result['placa'],
+                        img_path,
+                        dialog.result.get('observaciones', '')
+                    )
+                    
+                    self._log_event("Entrada registrada en base de datos")
+                    messagebox.showinfo("Éxito", "Entrada registrada correctamente")
+                except Exception as e:
+                    logger.error(f"Error al registrar entrada: {e}")
+                    self._log_event(f"Error al registrar entrada: {e}")
+                    messagebox.showerror("Error", f"Error al registrar entrada: {e}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al registrar entrada: {e}")
+            self._log_event(f"Error al registrar entrada: {e}")
+    
+    def _registrar_salida(self):
+        """Registrar salida con la placa detectada"""
+        if not self.detection_results:
+            messagebox.showerror("Error", "No hay resultados de detección")
+            return
+        
+        try:
+            # Guardar copia de la imagen en el directorio de salidas
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            img_path = os.path.join("imagenes", "salida", f"salida_{timestamp}.jpg")
+            cv2.imwrite(img_path, self.current_image)
+            
+            # Verificar si hay registro de entrada para esta placa
+            placa = self.detection_results['placa']
+            estado = Estado()
+            registro_entrada = estado.buscar_entrada_activa(placa)
+            
+            # Abrir diálogo de salida
+            dialog = SalidaDialog(
+                self.root, 
+                placa, 
+                registro_entrada, 
+                img_path, 
+                self.detection_results.get('img_placa')
+            )
+            
+            if dialog.result:
+                # Registro exitoso
+                self._log_event(f"Registro de salida exitoso: {placa}")
+                
+                # Guardar en base de datos
+                try:
+                    estado.registrar_salida(
+                        placa,
+                        img_path,
+                        dialog.result.get('observaciones', '')
+                    )
+                    
+                    self._log_event("Salida registrada en base de datos")
+                    messagebox.showinfo("Éxito", "Salida registrada correctamente")
+                except Exception as e:
+                    logger.error(f"Error al registrar salida: {e}")
+                    self._log_event(f"Error al registrar salida: {e}")
+                    messagebox.showerror("Error", f"Error al registrar salida: {e}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al registrar salida: {e}")
+            self._log_event(f"Error al registrar salida: {e}")
+    
+    def _limpiar(self):
+        """Limpiar imagen y resultados"""
+        self.image_path = None
+        self.current_image = None
+        self.detection_results = None
+        
+        # Limpiar visualización de imagen
+        self.image_label.config(image="", text="Sin imagen")
+        
+        # Limpiar resultados
+        self._limpiar_resultados()
+        
+        # Deshabilitar botones
+        self.btn_procesar.config(state=tk.DISABLED)
+        self.btn_entrada.config(state=tk.DISABLED)
+        self.btn_salida.config(state=tk.DISABLED)
+        
+        self._log_event("Visualización limpiada")
+    
+    def _limpiar_resultados(self):
+        """Limpiar resultados de detección"""
+        self.placa_var.set("")
+        self.confianza_var.set("")
+        
+        if self.clasificador_vehiculos:
+            self.tipo_var.set("")
+            self.marca_var.set("")
+            self.color_var.set("")
+        
+        self.plate_label.config(image="")
+        
+        # Deshabilitar botones de registro
+        self.btn_entrada.config(state=tk.DISABLED)
+        self.btn_salida.config(state=tk.DISABLED)
+    
+    def _mostrar_imagen(self, imagen, label):
+        """
+        Mostrar imagen en una etiqueta
+        
+        Args:
+            imagen: Imagen en formato OpenCV (numpy array)
+            label: Etiqueta tkinter donde mostrar la imagen
+        """
+        try:
+            # Convertir BGR a RGB
+            if len(imagen.shape) == 3:
+                imagen_rgb = cv2.cvtColor(imagen, cv2.COLOR_BGR2RGB)
+            else:
+                # Si es una imagen en escala de grises, convertir a RGB
+                imagen_rgb = cv2.cvtColor(imagen, cv2.COLOR_GRAY2RGB)
+            
+            # Determinar tamaño máximo
+            panel_width = label.winfo_width()
+            panel_height = label.winfo_height()
+            
+            # Si el panel no tiene tamaño aún, usar valores por defecto
+            if panel_width <= 1:
+                panel_width = 640 if label == self.image_label else 200
+            
+            if panel_height <= 1:
+                panel_height = 480 if label == self.image_label else 100
+            
+            # Calcular tamaño para ajustar a la ventana
+            height, width = imagen.shape[:2]
+            
+            # Redimensionar manteniendo proporción
+            if width > panel_width or height > panel_height:
+                ratio = min(panel_width / width, panel_height / height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                imagen_rgb = cv2.resize(imagen_rgb, (new_width, new_height))
+            
+            # Convertir a formato PIL
+            from PIL import Image, ImageTk
+            pil_img = Image.fromarray(imagen_rgb)
+            
+            # Convertir a formato Tkinter
+            tk_img = ImageTk.PhotoImage(image=pil_img)
+            
+            # Mostrar en la etiqueta
+            label.config(image=tk_img)
+            label.image = tk_img  # Mantener referencia
+            
+        except Exception as e:
+            logger.error(f"Error al mostrar imagen: {e}")
+            label.config(text=f"Error al mostrar imagen: {e}")
+    
+    def _log_event(self, message):
+        """
+        Registrar evento en la consola de la UI
+        
+        Args:
+            message: Mensaje a registrar
+        """
+        timestamp = time.strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] {message}\n"
+        
+        # Agregar a la consola
+        self.console.config(state=tk.NORMAL)
+        self.console.insert(tk.END, log_entry)
+        self.console.see(tk.END)  # Desplazar al final
+        self.console.config(state=tk.DISABLED)
+        
+        # Registrar en el logger
+        logger.info(message)
+    
+    def shutdown(self):
+        """Cerrar aplicación de forma ordenada"""
+        logger.info("Cerrando aplicación de análisis...")
+        # No hay recursos que cerrar en este modo
+        logger.info("Aplicación cerrada correctamente")
+
 
 class ParqueaderoApp:
     """Aplicación principal del sistema de parqueadero con IA"""
@@ -198,7 +705,7 @@ class ParqueaderoApp:
     
     def _setup_ui(self):
         """Configurar interfaz gráfica"""
-        # Crear marco principal
+        # Marco principal
         self.main_frame = ttk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
@@ -934,6 +1441,82 @@ def optimizar_rendimiento(args):
         print(f"Error al optimizar rendimiento: {e}")
 
 
+def seleccionar_modo_inicio():
+    """
+    Muestra un diálogo para seleccionar el modo de inicio de la aplicación
+    
+    Returns:
+        str: Modo seleccionado ('normal' o 'analisis')
+    """
+    # Crear ventana
+    dialog = tk.Tk()
+    dialog.title("Seleccionar Modo de Inicio")
+    dialog.geometry("400x300")
+    
+    # Posicionar en el centro
+    dialog.eval('tk::PlaceWindow . center')
+    
+    # Variable para almacenar selección
+    modo_seleccionado = tk.StringVar(value="normal")
+    
+    # Título
+    ttk.Label(
+        dialog, 
+        text="Sistema de Parqueadero con IA", 
+        font=("Arial", 16, "bold")
+    ).pack(pady=10)
+    
+    ttk.Label(
+        dialog, 
+        text="Seleccione el modo de inicio:",
+        font=("Arial", 12)
+    ).pack(pady=10)
+    
+    # Opciones
+    frame = ttk.Frame(dialog)
+    frame.pack(pady=10, fill=tk.X, padx=20)
+    
+    # Opción 1: Modo normal
+    ttk.Radiobutton(
+        frame, 
+        text="Modo Normal (conectar a cámara y sensores)",
+        variable=modo_seleccionado,
+        value="normal"
+    ).pack(anchor=tk.W, pady=5)
+    
+    # Opción 2: Modo análisis
+    ttk.Radiobutton(
+        frame, 
+        text="Modo Análisis (subir imágenes para procesar)",
+        variable=modo_seleccionado,
+        value="analisis"
+    ).pack(anchor=tk.W, pady=5)
+    
+    # Variable para saber si se ha hecho una selección
+    seleccion_realizada = tk.BooleanVar(value=False)
+    
+    # Función para confirmar selección
+    def confirmar():
+        seleccion_realizada.set(True)
+        dialog.destroy()
+    
+    # Botón de confirmación
+    ttk.Button(
+        dialog, 
+        text="Iniciar",
+        command=confirmar
+    ).pack(pady=20)
+    
+    # Esperar a que el usuario haga su selección
+    dialog.wait_window()
+    
+    # Si se cerró la ventana sin confirmar, asumir modo normal
+    if not seleccion_realizada.get():
+        return "normal"
+    
+    return modo_seleccionado.get()
+
+
 def main():
     """Función principal"""
     # Configurar parser de argumentos
@@ -944,6 +1527,7 @@ def main():
     parser.add_argument("--test-gpio", action="store_true", help="Probar sensores GPIO")
     parser.add_argument("--test-ia", action="store_true", help="Probar modelos de IA")
     parser.add_argument("--optimizar", action="store_true", help="Optimizar rendimiento de la Jetson")
+    parser.add_argument("--modo-analisis", action="store_true", help="Iniciar en modo de análisis de imágenes")
     
     args = parser.parse_args()
     
@@ -964,9 +1548,16 @@ def main():
         optimizar_rendimiento(args)
         return
     
-    # Ejecutar aplicación principal
+    # Seleccionar modo de inicio si no se especificó por argumentos
+    modo = "analisis" if args.modo_analisis else seleccionar_modo_inicio()
+    
+    # Ejecutar aplicación según el modo seleccionado
     root = tk.Tk()
-    app = ParqueaderoApp(root, args)
+    
+    if modo == "analisis":
+        app = AnalisisImagenApp(root, args)
+    else:
+        app = ParqueaderoApp(root, args)
     
     # Configurar cierre ordenado de la aplicación
     def on_closing():
