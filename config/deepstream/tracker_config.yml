@@ -1,0 +1,34 @@
+tracker-config:
+  tracker-width: 640
+  tracker-height: 384
+  gpu-id: 0
+  
+  # Configuración optimizada para seguimiento de placas vehiculares
+  # (estas placas no se mueven rápidamente, pero queremos alta precisión)
+  
+  # Distancia máxima IOU para asociar objetos
+  max-iou-dist: 0.7
+  
+  # Umbral de confianza para detecciones
+  min-confidence: 0.6
+  
+  # Configuración para manejo de oclusiones
+  max-age: 30
+  min-hits: 3
+  
+  # Parámetros específicos para el algoritmo de seguimiento
+  assignment-strategy: "hungarian"
+  filter-class: "kalman_filter"
+  
+  kalman-params:
+    process-noise-covar: 1e-2
+    measurement-noise-covar: 1e-2
+    error-covar-post: 1e-1
+    
+  # Configuración de clases a seguir (0 = placa)
+  enable-batch-process: 1
+  enable-past-frame: 1
+  display-tracking-id: 1
+  
+  # Lista de clases a seguir (0 = placa)
+  tracking-class: [0]
