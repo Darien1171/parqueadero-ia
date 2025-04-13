@@ -1,0 +1,13 @@
+2025-04-13 16:53:42,882 - parqueadero_openalpr - INFO - Inicializando OpenALPR con país 'us'...
+2025-04-13 16:53:42,887 - parqueadero_openalpr - INFO - Detector OpenALPR (comando) inicializado correctamente con país 'us'
+2025-04-13 16:53:42,888 - parqueadero_openalpr - INFO - OpenALPR inicializado correctamente
+2025-04-13 16:53:42,889 - parqueadero_openalpr - INFO - Patrón de placas configurado: aaa999
+2025-04-13 16:53:42,891 - parqueadero_openalpr - INFO - Sistema iniciado. Utiliza OpenALPR con configuración US. Por favor cargue una imagen.
+2025-04-13 16:53:42,891 - parqueadero_openalpr - INFO - Aplicación de análisis de imágenes con OpenALPR iniciada correctamente
+2025-04-13 16:53:56,906 - parqueadero_openalpr - INFO - Imagen cargada: placa1.jpg
+2025-04-13 16:53:58,046 - parqueadero_openalpr - INFO - Procesando imagen con OpenALPR...
+2025-04-13 16:53:58,121 - parqueadero_openalpr - INFO - Ejecutando comando: alpr -c us -j -p aaa999 -n 5 temp_alpr_input.jpg
+2025-04-13 16:53:58,944 - parqueadero_openalpr - INFO - Placa detectada: AAA123 con confianza 90.89
+2025-04-13 16:53:58,947 - parqueadero_openalpr - INFO - Placa detectada: AAA123 (confianza: 90.89)
+2025-04-13 16:54:01,498 - parqueadero_openalpr - INFO - Cerrando aplicación de análisis con OpenALPR...
+2025-04-13 16:54:01,499 - parqueadero_openalpr - INFO - Aplicación cerrada correctamente
